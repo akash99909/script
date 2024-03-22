@@ -1,2 +1,13 @@
+SELECT ARRAY_CONCAT(ARRAY[a], ARRAY[b]) AS c
+FROM your_table;
+
+
+SELECT c
+FROM (
+  SELECT ARRAY_CONCAT(ARRAY[a], ARRAY[b]) AS c
+  FROM your_table
+)
+CROSS JOIN UNNEST(c) AS c;
+
 # script
 
