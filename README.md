@@ -72,10 +72,36 @@ BigQuery: We will have multiple backend scripts /rule engines for checking and s
 
 
 
+CREATE TABLE alert_logs (
+  timestamp TIMESTAMP,
+  message STRING
+);
 
 
+INSERT INTO alert_logs (timestamp, message)
+SELECT CURRENT_TIMESTAMP() AS timestamp, 
+  CASE 
+    WHEN (SELECT COUNT(*) FROM table_a) != (SELECT COUNT(*) FROM table_b) 
+    THEN 'Counts do not match: Table A has ' || CAST((SELECT COUNT(*) FROM table_a) AS STRING) || ' records, but Table B has ' || CAST((SELECT COUNT(*) FROM table_b) AS STRING) || ' records.'
+    ELSE NULL 
+  END AS message;
+  
 
 
+DECLARE alert_message STRING;
+
+SET alert_message = (
+  SELECT 
+    CASE 
+      WHEN (SELECT COUNT(*) FROM table_a) != (SELECT COUNT(*) FROM table_b) 
+      THEN 'Counts do not match: Table A has ' || CAST((SELECT COUNT(*) FROM table_a) AS STRING) || ' records, but Table B has ' || CAST((SELECT COUNT(*) FROM table_b) AS STRING) || ' records.'
+      ELSE NULL 
+    END
+);
+
+IF alert_message IS NOT NULL THEN
+  LOG('Alert: ' || alert_message);
+END IF;
 
 
 
