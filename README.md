@@ -11,6 +11,77 @@ CROSS JOIN UNNEST(c) AS c;
 
 # script
 
+WITH subtopic_counts AS (
+    SELECT 
+        stage, 
+        topic, 
+        COUNT(DISTINCT subtopic) AS distinct_subtopic_count
+    FROM `your_project.your_dataset.your_table`
+    GROUP BY stage, topic
+),
+stage_total_counts AS (
+    SELECT
+        stage,
+        SUM(distinct_subtopic_count) AS total_distinct_subtopic_count
+    FROM 
+        subtopic_counts
+    GROUP BY stage
+),
+ranked_topics AS (
+    SELECT
+        stage,
+        topic,
+        ROW_NUMBER() OVER (PARTITION BY stage ORDER BY topic) AS topic_rank,
+        COUNT(*) OVER (PARTITION BY stage) AS total_topics
+    FROM subtopic_counts
+),
+split_topics AS (
+    SELECT
+        stage,
+        topic,
+        CASE 
+            WHEN topic_rank <= total_topics / 2 THEN 1
+            ELSE 2
+        END AS part
+    FROM ranked_topics
+),
+ranked_subtopics AS (
+    SELECT
+        st.stage,
+        st.topic,
+        st.subtopic,
+        sp.part,
+        ROW_NUMBER() OVER (PARTITION BY st.stage, sp.part ORDER BY st.subtopic) AS subtopic_rank,
+        COUNT(*) OVER (PARTITION BY st.stage, sp.part) AS part_subtopic_count
+    FROM `your_project.your_dataset.your_table` st
+    JOIN split_topics sp ON st.stage = sp.stage AND st.topic = sp.topic
+),
+split_subtopics AS (
+    SELECT
+        stage,
+        part,
+        STRING_AGG(DISTINCT topic ORDER BY topic) AS concatenated_topics,
+        STRING_AGG(subtopic ORDER BY subtopic) AS concatenated_subtopics
+    FROM ranked_subtopics
+    GROUP BY stage, part
+)
+SELECT
+    ss.stage,
+    t.topic,
+    ss.concatenated_topics,
+    ss.concatenated_subtopics,
+    ss.part
+FROM 
+    split_subtopics ss
+JOIN 
+    split_topics t ON ss.stage = t.stage AND ss.part = t.part
+ORDER BY ss.stage, ss.part, t.topic;
+
+
+
+
+
+
 any HLD for this but couple of major services which are used from GCP are:
 Buckets: Buckets will be used for storage of incoming files in excel format. Buckets contain objects which can be accessed with ACL (Access Control List) properties. A bucket is always owned by the associated project's owner.
 BigQuery: We will have multiple backend scripts /rule engines for checking and segregating data for utilization in visualization layer from buckets. Following are the checks that will run in BigQuery:
